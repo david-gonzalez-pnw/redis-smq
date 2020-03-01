@@ -45,7 +45,7 @@ const events = {
     MESSAGE_REQUEUED: 'message.requeued',
     MESSAGE_DELAYED: 'message.delayed',
     MESSAGE_DEAD_LETTER: 'message.moved_to_dlq',
-    MESSAGE_DESTROYED: 'message.destroyed',
+    MESSAGE_DESTROYED: 'message.destroyed'
 };
 
 module.exports = function dispatcher() {
@@ -409,8 +409,11 @@ module.exports = function dispatcher() {
          * @param options
          */
         bootstrapConsumer(inst, cfg, options) {
-            if (!inst.constructor.hasOwnProperty('queueName')) {
-                throw new Error('Undefined queue name!');
+            if (!inst.constructor.hasOwnProperty('queueName')){
+                if(!cfg.hasOwnProperty('queueName')) {
+                    throw new Error('Undefined queue name!');
+                }
+                inst.constructor.queueName = cfg.queueName;
             }
 
             instanceType = instanceTypes.CONSUMER;
@@ -588,6 +591,10 @@ module.exports = function dispatcher() {
 
         getNextMessage() {
             loggerInstance.info('Waiting for new messages...');
+            if(redisClientInstance.llen(keys.keyQueueName) === 0 && redisClientInstance.llen(key.keyQueueNameProcessing) === 0) {
+                loggerInstance.info('All queues are empty, nothing to process. Shutting down...');
+                return this.shutdown();
+            }
             redisClientInstance.brpoplpush(keys.keyQueueName, keys.keyQueueNameProcessing, 0, (err, json) => {
                 if (err) handleError(this, err);
                 else {
